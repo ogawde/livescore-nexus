@@ -1,0 +1,23 @@
+.env
+node_modules
+.next/
+out/
+dist/
+build/
+coverage/
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+next-env.d.ts
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE specific files
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo

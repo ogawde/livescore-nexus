@@ -2,8 +2,6 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.0.1
     container_name: zookeeper
-    networks:
-      - livescore-net
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -11,52 +9,46 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.0.1
     container_name: kafka
-    networks:
-      - livescore-net
     depends_on:
       - zookeeper
     ports:
-      # Exposes Kafka to your host machine (e.g., for a GUI tool or testing)
-      - "29092:29092"
+      - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      # This listener is for communication between our services INSIDE the docker network
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
 
   redis:
     image: redis:6.2-alpine
     container_name: redis
-    networks:
-      - livescore-net
     ports:
-      # Exposes Redis to your host machine
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
+      - '6379:6379'
 
   poller-service:
-    container_name: poller-service
-    # Tells docker-compose to build the image from the Dockerfile in this directory
     build:
       context: ./services/poller-service
-    networks:
-      - livescore-net
+    container_name: poller-service
     depends_on:
       - kafka
-    # This makes the .env file available to the container
+    volumes:
+      - ./services/poller-service:/usr/src/app
+      - /usr/src/app/node_modules
     env_file:
       - ./services/poller-service/.env
 
-# Define a shared network for all our services to communicate
-networks:
-  livescore-net:
-    driver: bridge
-
-# Define a volume to persist Redis data across container restarts
-volumes:
-  redis-data:
-    driver: local
+  consumer-service:
+    build:
+      context: ./services/consumer-service
+    container_name: consumer-service
+    depends_on:
+      - kafka
+      - redis
+    volumes:
+      - ./services/consumer-service:/usr/src/app
+      - /usr/src/app/node_modules
+    env_file:
+      - ./services/consumer-service/.env

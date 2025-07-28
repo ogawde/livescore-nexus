@@ -1,4 +1,5 @@
 services:
+  # Zookeeper is a dependency for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.0.1
     container_name: zookeeper
@@ -6,13 +7,14 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
 
+  # Kafka Broker (the message queue)
   kafka:
     image: confluentinc/cp-kafka:7.0.1
     container_name: kafka
-    depends_on:
-      - zookeeper
     ports:
       - "9092:9092"
+    depends_on:
+      - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
@@ -22,24 +24,27 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
 
+  # Redis (for caching and Pub/Sub)
   redis:
-    image: redis:6.2-alpine
+    image: "redis:alpine"
     container_name: redis
     ports:
-      - '6379:6379'
+      - "6379:6379"
 
+  # --- Our Custom Services ---
+
+  # Service 1: Polls the API and produces messages to Kafka
   poller-service:
     build:
       context: ./services/poller-service
     container_name: poller-service
     depends_on:
       - kafka
-    volumes:
-      - ./services/poller-service:/usr/src/app
-      - /usr/src/app/node_modules
     env_file:
       - ./services/poller-service/.env
+    restart: on-failure
 
+  # Service 2: Consumes from Kafka and caches in Redis
   consumer-service:
     build:
       context: ./services/consumer-service
@@ -47,8 +52,19 @@ services:
     depends_on:
       - kafka
       - redis
-    volumes:
-      - ./services/consumer-service:/usr/src/app
-      - /usr/src/app/node_modules
     env_file:
       - ./services/consumer-service/.env
+    restart: on-failure
+
+  # Service 3: Pushes data to clients via WebSockets
+  websocket-service:
+    build:
+      context: ./services/websocket-service
+    container_name: websocket-service
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./services/websocket-service/.env
+    restart: on-failure

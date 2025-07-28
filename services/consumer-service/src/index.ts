@@ -1,5 +1,3 @@
-
-
 import { Kafka } from 'kafkajs';
 import Redis from 'ioredis';
 import 'dotenv/config';
@@ -48,7 +46,12 @@ const run = async () => {
         await redis.set(`match:${matchId}`, JSON.stringify(scoreData));
 
         console.log(`Cached data for match ID: ${matchId}`);
-      },
+     // NEW: Publish a message to the 'match-updates' channel
+     // The message is the ID of the match that was just updated.
+      await redis.publish('match-updates', matchId);
+      console.log(`Published update for match ID: ${matchId} to 'match-updates' channel`);
+
+},
     });
 
   } catch (error) {
@@ -83,3 +86,4 @@ signalTraps.forEach(type => {
     }
   });
 });
+
